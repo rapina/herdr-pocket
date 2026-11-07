@@ -102,15 +102,22 @@ final class ConnectionStore {
             }
             int status = connection.getResponseCode();
             InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-            String text = "{}";
+            String text = "";
             if (stream != null) try (InputStream in = stream; ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                 byte[] buffer = new byte[8192]; int count;
                 while ((count = in.read(buffer)) != -1) { out.write(buffer, 0, count); if (out.size() > 2 * 1024 * 1024) throw new Exception("response_large"); }
                 text = out.toString("UTF-8");
             }
-            JSONObject result;
-            try { result = new JSONObject(text); } catch (Exception e) { throw new Exception("invalid_response"); }
-            if (status < 200 || status >= 300) throw new HttpFailure(result.optString("error", "request_failed"), status);
+            JSONObject result = null;
+            try { result = new JSONObject(text); }
+            catch (Exception e) {
+                if (status >= 200 && status < 300) throw new Exception("invalid_response");
+            }
+            if (status < 200 || status >= 300) {
+                String fallback = status >= 502 && status <= 504 ? "network_error"
+                    : status == 401 ? "unauthorized" : "request_failed";
+                throw new HttpFailure(result == null ? fallback : result.optString("error", fallback), status);
+            }
             return result;
         } finally { connection.disconnect(); }
     }
