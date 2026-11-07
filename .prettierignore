@@ -1,0 +1,10 @@
+﻿.local
+artifacts
+.gradle
+**/build
+gradle
+node_modules
+*.java
+*.py
+LICENSE*
+app/src/main/assets/vendor/
