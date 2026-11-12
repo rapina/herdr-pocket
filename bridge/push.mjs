@@ -8,6 +8,20 @@ const digest = (v) => createHash('sha256').update(JSON.stringify(v)).digest('hex
 const fault = (status, message) => Object.assign(new Error(message), { status });
 const read = (path) => JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, ''));
 
+export function notificationPreview(value) {
+  if (typeof value !== 'string') return '';
+  const text = value.trim();
+  let preview = '',
+    bytes = 0;
+  for (const character of text) {
+    const size = Buffer.byteLength(JSON.stringify(character)) - 2;
+    if (bytes + size > 1997) return preview + '…';
+    preview += character;
+    bytes += size;
+  }
+  return preview;
+}
+
 export function loadPushConfig(folder, env = process.env) {
   const clientPath = env.POCKET_FIREBASE_CLIENT_CONFIG || resolve(folder, 'google-services.json');
   const accountPath =
@@ -71,6 +85,9 @@ export function createFcmSender({ account, options }, fetcher = fetch) {
               sessionKey: event.key,
               kind: event.kind,
               createdAt: String(event.at),
+              ...(event.kind === 'done' && event.preview
+                ? { preview: notificationPreview(event.preview) }
+                : {}),
             },
             android: {
               priority: 'HIGH',
@@ -194,7 +211,13 @@ export function createPushHub({
       if (state === 'working' || kind)
         data.pending = data.pending.filter((p) => p.event.key !== r.key);
       if (kind) {
-        const event = { id: randomUUID(), key: r.key, kind, at: now() };
+        const event = {
+          id: randomUUID(),
+          key: r.key,
+          kind,
+          at: now(),
+          ...(kind === 'done' ? { preview: notificationPreview(t.lastResponseText) } : {}),
+        };
         for (const device of Object.keys(data.devices))
           data.pending.push({ device, event, attempts: 0, next: now() });
       }

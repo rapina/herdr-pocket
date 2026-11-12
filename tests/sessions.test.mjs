@@ -16,10 +16,12 @@ test('same launch directory produces distinct current project cards with live st
 test('response timestamp and active turn start survive terminal projection', () => {
   const metadata = {
     lastResponseAt: '2026-01-01T10:00:00Z',
+    lastResponseText: '변경한 내용을 확인했습니다.',
     turnStartedAt: '2026-01-01T11:00:00Z',
   };
   const working = displayTerminal({ status: { state: 'working' }, status_ms: 100 }, metadata);
   assert.equal(working.lastResponseAt, metadata.lastResponseAt);
+  assert.equal(working.lastResponseText, metadata.lastResponseText);
   assert.equal(working.workingSince, metadata.turnStartedAt);
   assert.equal(displayTerminal({ status: { state: 'done' } }, metadata).workingSince, null);
 });

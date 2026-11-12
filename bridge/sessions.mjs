@@ -30,6 +30,7 @@ export function displayTerminal(terminal, session = {}) {
     ...(session.workingCwd ? { cwd: session.workingCwd } : {}),
     sessionId: session.sessionId || null,
     lastResponseAt: session.lastResponseAt || null,
+    lastResponseText: session.lastResponseText || '',
     workingSince:
       (session.cursorState || terminal.status?.state) === 'working'
         ? session.turnStartedAt || terminal.status_ms || null

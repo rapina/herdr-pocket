@@ -4,7 +4,7 @@ import { randomUUID, generateKeyPairSync } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createPushHub, createFcmSender } from '../bridge/push.mjs';
+import { createPushHub, createFcmSender, notificationPreview } from '../bridge/push.mjs';
 import { createBridge } from '../bridge/server.mjs';
 
 const config = { options: { projectId: 'example-project' } };
@@ -59,6 +59,41 @@ test('baseline is silent, transitions deduplicate, and payloads contain no conve
     /private-session|workstation|lastResponseAt|prompt/,
   );
 });
+test('completion events retain the matching response preview across retries', async () => {
+  let fail = true;
+  const delivered = [];
+  const { hub, advance } = setup({
+    send: async (_, event) => {
+      if (fail) throw Error('offline');
+      delivered.push(event);
+    },
+  });
+  hub.observe([terminal()]);
+  hub.observe([
+    terminal('done', { lastResponseAt: 'new', lastResponseText: '  빌드 완료\n설치했습니다.  ' }),
+  ]);
+  await hub.flush();
+  hub.observe([terminal('done', { lastResponseAt: 'new', lastResponseText: 'different text' })]);
+  fail = false;
+  advance(11000);
+  await hub.flush();
+  assert.equal(delivered.length, 1);
+  assert.equal(delivered[0].preview, '빌드 완료\n설치했습니다.');
+});
+
+test('preview fits the FCM budget including Unicode and JSON escaping', () => {
+  for (const text of ['한글😀'.repeat(2000), '"\\\n'.repeat(2000)]) {
+    const preview = notificationPreview(text);
+    assert.ok(Buffer.byteLength(JSON.stringify(preview)) - 2 <= 2000);
+    assert.ok(preview.endsWith('…'));
+    assert.ok(text.startsWith(preview.slice(0, -1)));
+    assert.equal(Buffer.from(preview).toString(), preview);
+  }
+  assert.equal(notificationPreview('  답변\n완료  '), '답변\n완료');
+  assert.equal(notificationPreview(null), '');
+  assert.equal(notificationPreview(' \n '), '');
+});
+
 test('unknown and disconnected states are not errors; replaced sessions cannot resolve old notifications', async () => {
   const { hub, sent } = setup();
   const key = hub.decorate(terminal()).notificationKey;
@@ -160,7 +195,7 @@ test('FCM transport uses scoped OAuth and data-only messages with bounded lifeti
   );
   const event = { id: randomUUID(), key: randomUUID(), kind: 'input', at: 100 };
   await sender('fake-device', event);
-  await sender('fake-device', { ...event, kind: 'done' });
+  await sender('fake-device', { ...event, kind: 'done', preview: '답변😀'.repeat(2000) });
   assert.equal(calls.length, 3);
   const claims = JSON.parse(
     Buffer.from(calls[0].request.body.get('assertion').split('.')[1], 'base64url'),
@@ -172,6 +207,9 @@ test('FCM transport uses scoped OAuth and data-only messages with bounded lifeti
   assert.equal(input.android.priority, 'HIGH');
   assert.deepEqual(Object.keys(input.data).sort(), ['createdAt', 'eventId', 'kind', 'sessionKey']);
   assert.equal(JSON.parse(calls[2].request.body).message.android.priority, 'HIGH');
+  const done = JSON.parse(calls[2].request.body).message;
+  assert.ok(done.data.preview.startsWith('답변😀'));
+  assert.ok(Buffer.byteLength(JSON.stringify(done.data)) < 4096);
   assert.equal(input.android.collapse_key, undefined);
 });
 test('push endpoints require bridge authentication and reject invalid registration', async (t) => {

@@ -46,8 +46,10 @@ through Herdr and the bridge, not Firebase. The bridge temporarily caches files 
 Notifications are opt-in. Firebase client settings and sender credentials live in
 the bridge's ignored `.local/` directory. Only client settings go to the phone;
 the service account key stays on the PC. FCM processes installation tokens, opaque
-event/session identifiers, event kinds, and timestamps. It receives no conversation
-text or project names. The phone hides notification content on the lock screen
+event/session identifiers, event kinds, timestamps, and response previews for
+completion alerts. Previews can include names or paths present in the response.
+Pending previews are also stored in the bridge's `.local/push-state.json` until
+delivery or expiry. The phone hides notification content on the lock screen
 using Android's private visibility setting. Notification titles use its local cache.
 
 For a vulnerability, use GitHub's **Report a vulnerability** option when enabled.
