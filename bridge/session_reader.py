@@ -43,6 +43,7 @@ def codex_sessions(home):
             rows = [dict(r) for r in db.execute("select id,name,title,cwd,rollout_path from threads where thread_source='user' and source!='exec' and archived=0")]
     for row in rows:
         row['cwd'] = clean_path(row['cwd'])
+        row['rollout_path'] = clean_path(row['rollout_path'])
         row['names'] = {v for v in [row.get('name'), names.get(row['id']), row.get('title')] if v}
     return rows
 

@@ -118,6 +118,24 @@ class SessionsTest(unittest.TestCase):
         events.append({'type': 'user', 'message': {'content': [{'type': 'tool_result', 'tool_use_id': 't', 'content': 'private debug'}]}})
         self.assertEqual(self.conversation(events, 'claude-code')['activity']['state'], 'completed')
 
+    @unittest.skipUnless(sys.platform == 'win32', 'extended-length paths are Windows only')
+    def test_codex_rollout_with_extended_length_prefix_is_readable(self):
+        import sqlite3
+        from session_reader import codex_sessions
+        # The reader leaves its read-only connection to the process exit, which locks the file on Windows.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as folder:
+            home = pathlib.Path(folder)
+            rollout = home / '.codex/sessions/2026/01/01/rollout-a.jsonl'
+            rollout.parent.mkdir(parents=True)
+            rollout.write_text(json.dumps(self.message('assistant', '완료')), encoding='utf-8')
+            with sqlite3.connect(home / '.codex/state_5.sqlite') as db:
+                db.execute('create table threads (id, name, title, cwd, rollout_path, thread_source, source, archived)')
+                db.execute("insert into threads values ('a', '', 'demo', ?, ?, 'user', 'cli', 0)", ('\\\\?\\D:\\work\\demo', '\\\\?\\' + str(rollout)))
+            db.close()
+            path = pathlib.Path(codex_sessions(home)[0]['rollout_path'])
+            self.assertTrue(path.resolve().is_relative_to((home / '.codex/sessions').resolve()))
+            self.assertEqual(read_conversation(path, 'codex')['messages'][0]['text'], '완료')
+
 
 if __name__ == '__main__':
     unittest.main()
