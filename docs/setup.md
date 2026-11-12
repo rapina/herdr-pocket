@@ -15,9 +15,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-bridge.ps1
 
 The bridge binds to `127.0.0.1:47831`. The first launch creates `.local/config.json`.
 
-To start at Windows login, run `scripts/install-startup.ps1`. To stop the bridge,
-run `scripts/stop-bridge.ps1`. Remove `Herdr Pocket Bridge.lnk` from your Startup
-folder to disable auto-start.
+To keep the bridge running, run `scripts/install-startup.ps1`. It registers a
+scheduled task named `Wired Bridge` that starts the bridge at Windows sign-in and
+restarts it within a minute if it stops. With the task installed, `start-bridge.ps1`
+starts the bridge through the task, so closing the terminal does not stop it.
+
+`scripts/stop-bridge.ps1` stops the bridge, but the task starts it again within a
+minute. Use `stop-bridge.ps1 -Disable` to keep it stopped; `start-bridge.ps1`
+re-enables the task. Remove the task with
+`Unregister-ScheduledTask -TaskName 'Wired Bridge'`.
 
 ### Connect from Android
 
