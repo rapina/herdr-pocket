@@ -35,10 +35,10 @@ Media uses authenticated bridge requests. Native code intercepts only the reserv
 media host and adds credentials; the token never appears in media URLs. Other HTTP
 subresources are blocked. The bridge exposes only media references found in a
 matched conversation and checks that its session identity is still current.
-The remote reader resolves symlinks, requires files to remain inside that session's
-working folder or the current Claude session's temporary scratchpad, excludes hidden
-paths, and checks media signatures and size limits. Other sessions' scratchpads are
-not accessible through that conversation.
+Any local path the agent wrote in a visible message can be served, including files
+outside the working folder. The phone can only request IDs the bridge issued for
+those paths. The remote reader resolves symlinks, rejects network shares, and checks
+media signatures and size limits, so only real image, audio, and video files are sent.
 SVG, HTML, network shares, and arbitrary web URLs are not served. Media bytes pass
 through Herdr and the bridge, not Firebase. The bridge temporarily caches files under
 `.local/media-cache/`; its OS account can read them until cleanup.

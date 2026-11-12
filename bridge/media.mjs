@@ -52,7 +52,7 @@ export function mediaReferences(text) {
     add(m[1]);
   for (const m of plain.matchAll(/`([^`\n]+)`/g)) add(m[1]);
   for (const m of plain.matchAll(
-    /(?:^|[\s<(])((?:file:[\/\\]+|[a-z]:[\/\\]|\/(?!\/))[^\s<>"'`\]\)]+)/gi,
+    /(?:^|[\s<(])((?:file:[\/\\]+|[a-z]:[\/\\]|~[\/\\]|\/(?!\/))[^\s<>"'`\]\)]+)/gi,
   ))
     add(m[1].replace(/[.,;]+$/, ''));
   return [...found.values()].slice(0, 12);
