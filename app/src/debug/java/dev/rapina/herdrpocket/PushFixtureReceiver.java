@@ -33,6 +33,7 @@ public class PushFixtureReceiver extends BroadcastReceiver {
                     HashMap<String, String> data = new HashMap<>();
                     data.put("sessionKey", key); data.put("eventId", intent.getStringExtra("event") == null ? UUID.randomUUID().toString() : intent.getStringExtra("event"));
                     data.put("kind", intent.getStringExtra("kind"));
+                    data.put("preview", intent.getStringExtra("preview"));
                     data.put("createdAt", Long.toString(intent.getLongExtra("at", System.currentTimeMillis())));
                     PushManager.show(c, data);
                 } finally { prefs.edit().putBoolean("enabled", enabled).commit(); }
@@ -42,6 +43,8 @@ public class PushFixtureReceiver extends BroadcastReceiver {
                 count++; result.put("when", n.getNotification().when).put("channel", n.getNotification().getChannelId());
                 result.put("importance", manager.getNotificationChannel(n.getNotification().getChannelId()).getImportance());
                 result.put("sound", manager.getNotificationChannel(n.getNotification().getChannelId()).getSound() != null);
+                result.put("text", n.getNotification().extras.getCharSequence(android.app.Notification.EXTRA_TEXT));
+                result.put("bigText", n.getNotification().extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT));
             }
             result.put("count", count);
             boolean summary = false;

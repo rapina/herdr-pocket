@@ -53,9 +53,13 @@ Reference: [Android FCM setup](https://firebase.google.com/docs/cloud-messaging/
 - The bridge persists routes, registrations, and pending events in
   `.local/push-state.json`. Retries back off. Events expire after 15 minutes;
   resumed work supersedes queued alerts. Android deduplicates by session and time.
-- FCM carries only random session/event IDs, an event kind, and its timestamp.
-  Conversation text, project names, machine names, paths, and bridge credentials
-  are excluded. The phone uses locally cached project names for notification titles.
+- Completion alerts show the beginning of the assistant response. Expand an alert
+  to read multiple lines. Empty previews and older bridge versions use the generic
+  response-ready text.
+- FCM carries random session/event IDs, an event kind, its timestamp, and a response
+  preview bounded to 2,000 bytes of JSON string content. Previews can contain text
+  such as names or paths from the response. Bridge credentials are not included.
+  The phone uses locally cached project names for notification titles.
 - Alerts are grouped, with one current notification per session. Replacement
   sessions cannot reuse an old alert's route. Offline navigation retries on resume.
 - Registration refreshes after token changes and periodically on app resume.
@@ -78,3 +82,8 @@ display, channels, deduplication, foreground suppression, and the notification's
 PendingIntent. The receiver is absent from release builds. This fixture verifies
 Android behavior without claiming a real FCM delivery. Verify a real FCM delivery
 separately after configuring Firebase, including with the phone screen off.
+
+With Firebase configured and a registered debug phone connected over ADB, run
+`node scripts/phone-notification-preview-check.mjs` to send a synthetic completion
+preview through FCM. It checks Korean text, emoji, expanded content, silent delivery,
+and the empty-preview fallback, then removes its test notification.

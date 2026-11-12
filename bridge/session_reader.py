@@ -141,6 +141,7 @@ def recent_records(path):
 
 def conversation_metadata(path, agent):
     response_at = started_at = None
+    response_text = ''
     reverse = path.exists()
     for event in recent_records(path) if reverse else records(path):
         timestamp = event.get('timestamp')
@@ -169,11 +170,12 @@ def conversation_metadata(path, agent):
         text = text_blocks(data.get('content'))
         if role == 'assistant' and (response_at is None or not reverse) and text.strip() and data.get('phase') not in ('analysis', 'reasoning') and data.get('channel') not in ('analysis', 'reasoning'):
             response_at = timestamp
+            response_text = text.strip()[:2000]
         if agent != 'codex' and role == 'user' and (started_at is None or not reverse) and visible_user(text):
             started_at = timestamp
         if reverse and response_at and started_at:
             break
-    return {'lastResponseAt': response_at, 'turnStartedAt': started_at}
+    return {'lastResponseAt': response_at, 'lastResponseText': response_text, 'turnStartedAt': started_at}
 
 
 def text_blocks(content):
@@ -356,6 +358,7 @@ def collect(request, home=None):
                     'sessionTitle': terminal.get('title') or 'Cursor', 'cursorState': cursor['state'],
                     'cursorGeneration': cursor.get('generation'), 'cursorPrompt': cursor_user_text(cursor.get('prompt', '')),
                     'lastResponseAt': cursor.get('replyAt'), 'turnStartedAt': cursor.get('promptAt'),
+                    'lastResponseText': cursor.get('reply', '').strip()[:2000],
                     'conversation': {'messages': [], 'hasMore': False}}
             if request.get('conversationFor') == terminal['address']:
                 try:

@@ -17,11 +17,21 @@ class SessionsTest(unittest.TestCase):
 
     def test_response_time_ignores_newer_user_tools_and_reasoning(self):
         events = [dict(self.message('assistant', 'answer'), timestamp='2026-01-01T10:00:00Z'), {'type': 'event_msg', 'timestamp': '2026-01-01T11:00:00Z', 'payload': {'type': 'task_started'}}, dict(self.message('user', 'next'), timestamp='2026-01-01T11:00:01Z'), dict(self.message('assistant', 'private', phase='analysis'), timestamp='2026-01-01T11:00:02Z')]
-        self.assertEqual(self.metadata(events), {'lastResponseAt': '2026-01-01T10:00:00Z', 'turnStartedAt': '2026-01-01T11:00:00Z'})
+        self.assertEqual(self.metadata(events), {'lastResponseAt': '2026-01-01T10:00:00Z', 'lastResponseText': 'answer', 'turnStartedAt': '2026-01-01T11:00:00Z'})
 
     def test_claude_turn_time_ignores_tool_result_user_records(self):
         events = [{'type': 'user', 'timestamp': '2026-01-01T10:00:00Z', 'message': {'content': 'question'}}, {'type': 'assistant', 'timestamp': '2026-01-01T10:00:10Z', 'message': {'content': [{'type': 'text', 'text': 'answer'}]}}, {'type': 'user', 'timestamp': '2026-01-01T10:00:20Z', 'message': {'content': [{'type': 'tool_result', 'content': 'debug'}]}}]
-        self.assertEqual(self.metadata(events, 'claude-code'), {'lastResponseAt': '2026-01-01T10:00:10Z', 'turnStartedAt': '2026-01-01T10:00:00Z'})
+        self.assertEqual(self.metadata(events, 'claude-code'), {'lastResponseAt': '2026-01-01T10:00:10Z', 'lastResponseText': 'answer', 'turnStartedAt': '2026-01-01T10:00:00Z'})
+
+    def test_notification_preview_uses_latest_visible_answer_and_is_bounded(self):
+        answer = '한글😀' * 1000
+        events = [dict(self.message('assistant', 'old'), timestamp='2026-01-01T10:00:00Z'),
+                  {'type': 'event_msg', 'timestamp': '2026-01-01T10:01:00Z', 'payload': {'type': 'agent_message', 'message': answer}},
+                  dict(self.message('assistant', 'hidden', channel='analysis'), timestamp='2026-01-01T10:02:00Z')]
+        result = self.metadata(events)
+        self.assertEqual(result['lastResponseText'], answer[:2000])
+        self.assertEqual(result['lastResponseAt'], '2026-01-01T10:01:00Z')
+        self.assertEqual(self.metadata([])['lastResponseText'], '')
 
     def test_reverse_reader_preserves_large_unicode_records_and_partial_tail(self):
         events = [{'text': '한글' * 40000}, {'text': 'last'}]

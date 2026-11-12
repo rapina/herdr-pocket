@@ -166,12 +166,15 @@ final class PushManager {
             channels(c, ko);
             String title = new JSONObject(prefs(c).getString("routes", "{}")).optString(key, "Herdr Pocket");
             String text = kind.equals("input") ? (ko ? "입력이 필요해요" : "Input needed") : kind.equals("done") ? (ko ? "응답이 도착했어요" : "Response ready") : (ko ? "실행 오류" : "Execution error");
+            String preview = data.get("preview");
+            if (kind.equals("done") && preview != null && !preview.trim().isEmpty()) text = preview.trim();
             Intent intent = new Intent(c, MainActivity.class).setData(Uri.parse("pocket://notification/" + key))
                 .putExtra("notificationKey", key).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             PendingIntent pending = PendingIntent.getActivity(c, key.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             PendingIntent dismissed = PendingIntent.getBroadcast(c, key.hashCode(), new Intent(c, NotificationDismissReceiver.class).setData(Uri.parse("pocket://dismiss/" + key)).putExtra("key", key), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             Notification notification = new Notification.Builder(c, "pocket_" + kind).setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title).setContentText(text).setContentIntent(pending).setDeleteIntent(dismissed).setAutoCancel(true)
+                .setStyle(new Notification.BigTextStyle().bigText(text))
                 .setVisibility(Notification.VISIBILITY_PRIVATE).setCategory(kind.equals("input") ? Notification.CATEGORY_MESSAGE : Notification.CATEGORY_STATUS)
                 .setGroup(GROUP).setShowWhen(true).setWhen(at).build();
             NotificationManager manager = c.getSystemService(NotificationManager.class);
