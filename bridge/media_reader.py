@@ -36,14 +36,14 @@ def open_media(data):
     # The bridge only issues IDs for paths that appear in the session's messages.
     # Any local file is allowed as long as its signature is a supported media type.
     requested = data['path']
-    if '\x00' in requested: raise ValueError('media_forbidden')
+    # Opening a network share can send Windows credentials to that host.
+    if '\x00' in requested or is_network_path(requested): raise ValueError('media_forbidden')
     path = Path(requested)
     if requested.startswith(('~/', '~\\')): path = Path.home() / requested[2:]
     if not path.is_absolute():
         root = Path(data['root'])
         if not root.is_absolute(): raise ValueError('media_forbidden')
         path = root / path
-    # Opening a network share can send Windows credentials to that host.
     if is_network_path(path): raise ValueError('media_forbidden')
     path = path.resolve(strict=True)
     if is_network_path(path) or not path.is_file(): raise ValueError('media_forbidden')
