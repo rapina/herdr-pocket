@@ -101,7 +101,7 @@ function handleReceipt(r) {
         $('send-message'),
         [
           { background: 'var(--text)', transform: 'translateY(-3px)' },
-          { background: 'var(--lime)', transform: 'translateY(0)' },
+          { background: 'var(--accent)', transform: 'translateY(0)' },
         ],
         { duration: 260 },
       );
