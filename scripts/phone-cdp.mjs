@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 export async function connect() {
   const tabs = await (await fetch('http://127.0.0.1:9333/json')).json();
   const target = tabs.find((t) => t.url === 'file:///android_asset/index.html');
-  if (!target) throw new Error('Herdr Pocket WebView is not open');
+  if (!target) throw new Error('Wired WebView is not open');
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((r, j) => {
     ws.onopen = r;

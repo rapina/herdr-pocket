@@ -1,10 +1,10 @@
-# Herdr Pocket
+# Wired
 
-Manage your Herdr agents across machines from Android.
+Manage your Herdr agents across machines from Android. Formerly Herdr Pocket.
 
 [한국어](docs/README.ko.md)
 
-- Agent status and conversations across machines
+- Agent status and conversations across machines, with a companion avatar that reacts to them
 - Messages and supported approval prompts
 - Image, video, audio, and Mermaid previews
 - Optional notifications with your own Firebase project

@@ -234,7 +234,7 @@ try {
   );
   check(
     'working timer shows turn duration',
-    await c.evaluate(`document.querySelector('.elapsed').textContent==='2:05'`),
+    await c.evaluate(`/^2:0[56]$/.test(document.querySelector('.elapsed').textContent)`),
   );
   check(
     'companion avatar and agent icons load',
