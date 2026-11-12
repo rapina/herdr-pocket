@@ -53,10 +53,10 @@ the original Markdown. Other Markdown stays plain text.
 `bridge/media.mjs` finds local media references in visible messages and issues
 opaque IDs bound to the matched session, terminal generation, and working folder.
 `media_reader.py` runs through `hc exec` on that session's machine. It resolves the
-path, checks the workspace boundary and file signature, and transfers up to 128 MiB.
-Claude images in the OS temporary directory's `claude/<project>/<session>/scratchpad`
-are also allowed when the session ID matches. Other temporary files remain excluded.
-Hidden paths, network shares, SVG, HTML, and external URLs are excluded. The bridge
+path (relative paths from the working folder, `~/` from the home folder), checks the
+file signature, and transfers up to 128 MiB. Any local path that appears in a visible
+message is allowed, including temporary folders such as Claude's scratchpad on
+Windows and macOS. Network shares, SVG, HTML, and external URLs are excluded. The bridge
 accepts two concurrent transfers, keeps at most eight cached files / 256 MiB, and
 expires cached files after a minute. The first request transfers the complete file
 to the bridge; subsequent HTTP byte ranges support playback seeking. No transcoding

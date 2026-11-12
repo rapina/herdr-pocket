@@ -1,65 +1,53 @@
 import importlib.util
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('media_reader', Path(__file__).parents[1] / 'bridge/media_reader.py')
 media = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(media)
 
+PNG = b'\x89PNG\r\n\x1a\n' + b'\0' * 64
+
 
 class MediaReaderTests(unittest.TestCase):
-    def test_claude_scratchpad_is_bound_to_the_current_session(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(media.tempfile, 'gettempdir', return_value=tmp):
-            parent = Path(tmp)
-            root = parent / 'workspace'
-            root.mkdir()
-            session = '11111111-1111-1111-1111-111111111111'
-            scratch = parent / 'claude/0123456789abcdef' / session / 'scratchpad'
-            scratch.mkdir(parents=True)
-            image = scratch / 'preview.png'
-            image.write_bytes(b'\x89PNG\r\n\x1a\n' + b'\0' * 64)
-            data = dict(root=str(root), path=str(image), agent='claude', sessionId=session)
-            stream, info = media.open_media(data)
-            with stream: self.assertEqual(info['mime'], 'image/png')
-            for changed in [dict(sessionId='22222222-2222-2222-2222-222222222222'), dict(agent='cursor'), dict(sessionId='')]:
-                with self.assertRaisesRegex(ValueError, 'media_forbidden'):
-                    media.open_media({**data, **changed})
-            hidden = scratch / '.private.png'
-            hidden.write_bytes(image.read_bytes())
-            with self.assertRaisesRegex(ValueError, 'media_forbidden'):
-                media.open_media({**data, 'path': str(hidden)})
-
-    def test_workspace_boundary_hidden_files_and_content_type(self):
+    def test_paths_outside_the_workspace_are_allowed(self):
         with tempfile.TemporaryDirectory() as tmp:
             parent = Path(tmp)
             root = parent / 'workspace'
             root.mkdir()
-            image = root / 'render.png'
-            image.write_bytes(b'\x89PNG\r\n\x1a\n' + b'\0' * 64)
-            stream, info = media.open_media({'root': str(root), 'path': 'render.png'})
-            with stream:
-                self.assertEqual(info['mime'], 'image/png')
-                self.assertEqual(len(stream.read()), info['size'])
-            outside = parent / 'secret.png'
-            outside.write_bytes(image.read_bytes())
-            hidden = root / '.private'
+            scratch = parent / 'claude-501/-Users-me-projects-game/11111111-1111-1111-1111-111111111111/scratchpad'
+            scratch.mkdir(parents=True)
+            hidden = parent / '.cache'
             hidden.mkdir()
-            (hidden / 'secret.png').write_bytes(image.read_bytes())
-            for path in [str(outside), '../secret.png', '.private/secret.png', str(root)]:
-                with self.assertRaises(ValueError):
+            for image in [scratch / 'cycle.png', parent / 'secret.png', hidden / 'shot.png']:
+                image.write_bytes(PNG)
+                stream, info = media.open_media({'root': str(root), 'path': str(image)})
+                with stream: self.assertEqual(info['mime'], 'image/png')
+            stream, info = media.open_media({'root': str(root), 'path': '../secret.png'})
+            with stream: self.assertEqual(len(stream.read()), info['size'])
+            with patch.object(media.Path, 'home', return_value=parent):
+                stream, info = media.open_media({'root': str(root), 'path': '~/secret.png'})
+                with stream: self.assertEqual(info['mime'], 'image/png')
+
+    def test_missing_files_folders_and_network_shares_are_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for path in [str(root), str(root / 'missing.png'), 'a\x00.png']:
+                with self.assertRaises((ValueError, OSError)):
                     media.open_media({'root': str(root), 'path': path})
-            try:
-                (root / 'escape.png').symlink_to(outside)
-            except OSError:
-                pass
-            else:
-                with self.assertRaises(ValueError):
-                    media.open_media({'root': str(root), 'path': 'escape.png'})
+            for path in [r'\\server\share\a.png', '//server/share/a.png', r'\\?\UNC\server\share\a.png']:
+                with self.assertRaisesRegex(ValueError, 'media_forbidden'):
+                    media.open_media({'root': str(root), 'path': path})
+            self.assertFalse(media.is_network_path(r'\\?\C:\work\a.png'))
+
+    def test_content_type_comes_from_the_file_signature(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            image = Path(tmp) / 'render.png'
             image.write_bytes(b'<html><script>not an image</script></html>')
             with self.assertRaisesRegex(ValueError, 'media_unsupported'):
-                media.open_media({'root': str(root), 'path': 'render.png'})
+                media.open_media({'root': tmp, 'path': 'render.png'})
 
     def test_file_size_limit_and_audio_video_signatures(self):
         self.assertEqual(media.media_type(b'RIFF\0\0\0\0WAVE', '.wav'), 'audio/wav')

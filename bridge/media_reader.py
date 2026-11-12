@@ -1,10 +1,8 @@
-"""Read a bounded media file inside the matched session workspace, over hc stdin/stdout."""
+"""Read a bounded media file named in a session's messages, over hc stdin/stdout."""
 import json
 import os
-import re
 import stat
 import sys
-import tempfile
 from pathlib import Path
 
 LIMIT = 128 * 1024 * 1024
@@ -29,28 +27,26 @@ def media_type(head, suffix):
     raise ValueError('media_unsupported')
 
 
+def is_network_path(path):
+    text = str(path).replace('\\', '/')
+    return text.startswith('//') and not text.startswith(('//?/', '//./')) or text.startswith(('//?/UNC/', '//./UNC/'))
+
+
 def open_media(data):
-    root = Path(data['root']).resolve(strict=True)
+    # The bridge only issues IDs for paths that appear in the session's messages.
+    # Any local file is allowed as long as its signature is a supported media type.
     requested = data['path']
-    if not root.is_dir() or root == Path(root.anchor) or '\x00' in requested:
-        raise ValueError('media_forbidden')
+    # Opening a network share can send Windows credentials to that host.
+    if '\x00' in requested or is_network_path(requested): raise ValueError('media_forbidden')
     path = Path(requested)
-    if not path.is_absolute(): path = root / path
+    if requested.startswith(('~/', '~\\')): path = Path.home() / requested[2:]
+    if not path.is_absolute():
+        root = Path(data['root'])
+        if not root.is_absolute(): raise ValueError('media_forbidden')
+        path = root / path
+    if is_network_path(path): raise ValueError('media_forbidden')
     path = path.resolve(strict=True)
-    boundary = root
-    if not path.is_relative_to(root):
-        session = data.get('sessionId', '')
-        base = (Path(tempfile.gettempdir()) / 'claude').resolve()
-        if data.get('agent') not in ('claude', 'claude-code') or not re.fullmatch(r'[a-fA-F0-9-]{36}', session) or not path.is_relative_to(base):
-            raise ValueError('media_forbidden')
-        parts = path.relative_to(base).parts
-        if len(parts) < 4 or not re.fullmatch(r'[a-fA-F0-9]{8,64}', parts[0]) or parts[1] != session or parts[2] != 'scratchpad':
-            raise ValueError('media_forbidden')
-        boundary = base / parts[0] / session / 'scratchpad'
-    # Hidden configuration folders and credential files are never media sources.
-    if any(p.startswith('.') for p in path.relative_to(boundary).parts):
-        raise ValueError('media_forbidden')
-    if not path.is_file(): raise ValueError('media_forbidden')
+    if is_network_path(path) or not path.is_file(): raise ValueError('media_forbidden')
     stream = open(path, 'rb')
     try:
         info = os.fstat(stream.fileno())

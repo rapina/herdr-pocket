@@ -25,6 +25,7 @@ test('finds local media links, encoded spaces, Windows paths and relative links'
     'artifacts/render (1).png',
   );
   assert.equal(mediaReferences('file:\\\\C:\\work\\demo\\a.png')[0].path, 'C:/work/demo/a.png');
+  assert.equal(mediaReferences('saved to ~/shots/a.png.')[0].path, '~/shots/a.png');
 });
 test('ignores web URLs, network shares, code fences, active formats and duplicates', () => {
   for (const text of [
