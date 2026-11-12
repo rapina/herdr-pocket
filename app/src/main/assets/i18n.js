@@ -472,6 +472,19 @@ const I18n = (() => {
       ko: '전달 확인 중…',
       en: 'Checking delivery…',
     },
+    companion_idle: { ko: '대기 중', en: 'Idle' },
+    companion_working: { ko: '작업 중', en: 'Working' },
+    companion_blocked: { ko: '응답 필요', en: 'Needs you' },
+    companion_done: { ko: '작업 완료', en: 'Done' },
+    companion_rest: { ko: '작업 중인 세션이 없어요.', en: 'No sessions running.' },
+    sessions_total: { ko: '세션', en: 'Sessions' },
+    group_status: { ko: '상태', en: 'Status' },
+    group_project: { ko: '프로젝트', en: 'Project' },
+    section_working: { ko: 'WORKING', en: 'WORKING' },
+    section_blocked: { ko: 'NEEDS YOU', en: 'NEEDS YOU' },
+    section_done: { ko: 'DONE', en: 'DONE' },
+    section_idle: { ko: 'IDLE', en: 'IDLE' },
+    machines_online: { ko: '기기 {count}대 연결', en: '{count} machines online' },
   };
   const aliases = new Map(Object.entries(messages).map(([key, value]) => [value.ko, key]));
   let language =

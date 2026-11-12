@@ -27,15 +27,21 @@ const server = createServer((req, res) => {
       'notifications.js',
       'vendor/mermaid.min.js',
       'bootstrap.js',
-    ].includes(name)
+    ].includes(name) &&
+    !/^companion\/(idle|working|blocked|done)\.(gif|png)$/.test(name) &&
+    !/^icons\/(claude|codex|cursor)\.svg$/.test(name)
   ) {
     res.writeHead(404).end();
     return;
   }
-  res.setHeader(
-    'Content-Type',
-    name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : 'text/html',
-  );
+  const types = {
+    js: 'text/javascript',
+    css: 'text/css',
+    gif: 'image/gif',
+    png: 'image/png',
+    svg: 'image/svg+xml',
+  };
+  res.setHeader('Content-Type', types[name.split('.').pop()] || 'text/html');
   res.end(readFileSync(resolve(root, 'app/src/main/assets', name)));
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -221,14 +227,20 @@ try {
     await c.evaluate(`document.documentElement.scrollWidth<=innerWidth`),
   );
   check(
-    'working first then newest agent response',
+    'needs-you, working, then done; newest first in each',
     await c.evaluate(
-      `[...document.querySelectorAll('.card')].map(n=>n.dataset.address).join(',')==='workstation/t1,workstation/t0,workstation/t7,workstation/t6,workstation/t5,workstation/t4,workstation/t3,workstation/t2'`,
+      `[...document.querySelectorAll('.card')].map(n=>n.dataset.address).join(',')==='workstation/t2,workstation/t1,workstation/t0,workstation/t7,workstation/t6,workstation/t5,workstation/t4,workstation/t3'`,
     ),
   );
   check(
     'working timer shows turn duration',
     await c.evaluate(`document.querySelector('.elapsed').textContent==='2:05'`),
+  );
+  check(
+    'companion avatar and agent icons load',
+    await c.evaluate(
+      `new Promise(r=>setTimeout(()=>{const a=document.querySelector('.companion-avatar');const icons=[...document.querySelectorAll('.card .agent-icon img')];r($('companion').dataset.state==='blocked'&&a.getAttribute('src')==='companion/blocked.gif'&&a.naturalWidth===160&&icons.length===8&&icons.every(n=>n.naturalWidth>0)&&[...document.querySelectorAll('.stat span')].every(n=>n.scrollWidth<=n.clientWidth));},300))`,
+    ),
   );
   let shot = await command('Page.captureScreenshot', { format: 'png' });
   writeFileSync(resolve(root, 'artifacts/design-demo-list.png'), Buffer.from(shot.data, 'base64'));

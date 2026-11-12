@@ -36,12 +36,12 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         connection = ConnectionStore.get(this);
         pendingNotification = notificationKey(getIntent());
-        getWindow().setStatusBarColor(Color.rgb(11, 14, 20));
-        getWindow().setNavigationBarColor(Color.rgb(11, 14, 20));
+        getWindow().setStatusBarColor(Color.rgb(32, 25, 37));
+        getWindow().setNavigationBarColor(Color.rgb(32, 25, 37));
         frame = new FrameLayout(this);
-        frame.setBackgroundColor(Color.rgb(11, 14, 20));
+        frame.setBackgroundColor(Color.rgb(32, 25, 37));
         web = new WebView(this);
-        web.setBackgroundColor(Color.rgb(11, 14, 20));
+        web.setBackgroundColor(Color.rgb(32, 25, 37));
         frame.addView(web, new FrameLayout.LayoutParams(-1, -1));
         setContentView(frame);
         if (Build.VERSION.SDK_INT >= 30) {

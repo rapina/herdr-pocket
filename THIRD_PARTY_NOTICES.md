@@ -11,6 +11,12 @@ See [its license](licenses/Mermaid-MIT.txt) and
 its upstream license comments. Run `npm ci` and `npm run vendor:mermaid` to refresh
 the pinned bundle and notices.
 
+The Claude Code, Codex, and Cursor icons in `app/src/main/assets/icons/` come from
+LobeHub Icons under MIT. See [its license](licenses/LobeHub-icons-MIT.txt). The marks
+belong to their owners, and the license grants no trademark rights. The companion
+images in `app/src/main/assets/companion/` are original work by the project author
+and are covered by this project's MIT license.
+
 Prettier is a development dependency under MIT. Its license is included in the
 installed package. Android build tools and Gradle distributions are downloaded by
 the build and are governed by their own licenses.

@@ -52,8 +52,51 @@ function workingBadge(t) {
   }
   return n;
 }
+function ago(since) {
+  const ms = Date.now() - Date.parse(since);
+  if (!Number.isFinite(ms)) return '';
+  const m = Math.max(0, Math.floor(ms / 60000));
+  if (m < 60) return `${Math.max(1, m)}m`;
+  if (m < 1440) return `${Math.floor(m / 60)}h`;
+  return `${Math.floor(m / 1440)}d`;
+}
 function updateTimers() {
   document.querySelectorAll('.elapsed').forEach((n) => (n.textContent = elapsed(n.dataset.since)));
+  document.querySelectorAll('.age').forEach((n) => (n.textContent = ago(n.dataset.since)));
+}
+// Same palette order and hash as the Quad layout, so a machine keeps its color.
+const MACHINE_COLORS = ['#a5afcb', '#b9c49d', '#c6a2c3', '#a7c7c0', '#d8b88a', '#d99a9c'];
+function machineColor(name) {
+  const hash = [...String(name ?? '')].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0);
+  return MACHINE_COLORS[hash % MACHINE_COLORS.length];
+}
+function machineTag(name, className = 'machine-mini') {
+  const n = el('span', `tag ${className}`, name);
+  n.style.setProperty('--tag', machineColor(name));
+  return n;
+}
+const AGENT_ICONS = {
+  'claude-code': 'claude',
+  claude: 'claude',
+  codex: 'codex',
+  cursor: 'cursor',
+  'cursor-agent': 'cursor',
+};
+function agentIcon(agent) {
+  const box = el('span', 'agent-icon');
+  const file = AGENT_ICONS[agent];
+  if (file) {
+    const img = el('img');
+    img.src = `icons/${file}.svg`;
+    img.alt = '';
+    box.append(img);
+  } else box.append(icon('terminal'));
+  return box;
+}
+function statusDot(s) {
+  const n = el('i', `status-dot ${s || 'unknown'}`);
+  n.setAttribute('aria-hidden', 'true');
+  return n;
 }
 let toastTimer;
 function toast(text) {
@@ -151,27 +194,86 @@ function render() {
 function renderWelcome() {
   renderSettings();
 }
+const STATUS_ORDER = ['blocked', 'working', 'done', 'idle'];
+const sectionOf = (t) => (STATUS_ORDER.includes(statusOf(t)) ? statusOf(t) : 'idle');
+let groupMode = 'status';
+try {
+  if (localStorage.getItem('pocket-group') === 'project') groupMode = 'project';
+} catch {}
+function companionState(terms) {
+  const state = STATUS_ORDER.find((s) => terms.some((t) => statusOf(t) === s)) ?? 'idle';
+  const active = terms.filter((t) => statusOf(t) === state);
+  return {
+    state,
+    count: active.length,
+    task: active[0] ? active[0].sessionTitle || project(active[0]) : null,
+  };
+}
+function renderCompanion() {
+  const host = $('companion');
+  if (!host) return;
+  const terms = state.snapshot?.terminals || [];
+  const current = companionState(terms);
+  const machines =
+    1 + (state.snapshot?.machines || []).filter((m) => m.state === 'connected').length;
+  if (!host.firstChild) {
+    const text = el('div', 'companion-text');
+    const status = el('div', 'companion-status');
+    status.append(statusDot('idle'), el('span', 'companion-label'));
+    text.append(
+      el('div', 'companion-kicker', 'WIRED / COMPANION'),
+      status,
+      el('div', 'companion-task'),
+      el('div', 'companion-machines'),
+    );
+    const avatar = el('img', 'companion-avatar');
+    avatar.alt = '';
+    avatar.width = 132;
+    avatar.height = 132;
+    host.append(text, avatar);
+  }
+  host.dataset.state = current.state;
+  host.querySelector('.status-dot').className = `status-dot ${current.state}`;
+  const label = tr(`companion_${current.state}`);
+  host.querySelector('.companion-label').textContent =
+    current.state === 'idle' ? label : `${label} ${current.count}`;
+  host.querySelector('.companion-task').textContent =
+    current.state === 'idle' ? tr('companion_rest') : current.task || '';
+  host.querySelector('.companion-machines').textContent = state.snapshot
+    ? tr('machines_online', { count: state.online ? machines : 0 })
+    : tr('loading');
+  // Swap the image only when the state changes so the GIF keeps playing.
+  const src = `companion/${current.state}.${reducedMotion.matches ? 'png' : 'gif'}`;
+  const avatar = host.querySelector('.companion-avatar');
+  if (avatar.getAttribute('src') !== src) avatar.src = src;
+}
 function renderTasks() {
   const main = $('main');
   const terminals = state.snapshot?.terminals || [];
   const notice = el('div', `notice ${state.error ? '' : 'hidden'}`, state.error);
   notice.id = 'list-error';
   main.append(notice);
+  const companion = el('section', 'companion');
+  companion.id = 'companion';
+  companion.setAttribute('role', 'status');
+  main.append(companion);
+  renderCompanion();
   const stats = el('div', 'stats');
-  for (const [id, label, cls] of [
-    ['working', tr('working'), 'working'],
-    ['blocked', tr('blocked'), 'attention'],
-    ['done', tr('done'), 'done'],
+  for (const [id, label] of [
+    ['working', tr('working')],
+    ['blocked', tr('blocked')],
+    ['done', tr('done')],
   ]) {
-    const b = button(`stat ${cls} ${state.filter === id ? 'active' : ''}`, '', () => {
+    const b = button(`stat ${id} ${state.filter === id ? 'active' : ''}`, '', () => {
       state.filter = state.filter === id ? 'all' : id;
       syncTasks();
     });
     b.dataset.filter = id;
     b.setAttribute('aria-pressed', String(state.filter === id));
     b.append(
-      el('strong', '', String(terminals.filter((t) => statusOf(t) === id).length)),
+      statusDot(id),
       el('span', '', label),
+      el('strong', '', String(terminals.filter((t) => statusOf(t) === id).length)),
     );
     stats.append(b);
   }
@@ -191,6 +293,32 @@ function renderTasks() {
   filters.id = 'machine-filters';
   main.append(filters);
   renderMachineFilters();
+  const tools = el('div', 'rail-tools');
+  const modes = el('div', 'group-modes');
+  modes.setAttribute('role', 'group');
+  for (const mode of ['status', 'project']) {
+    const b = button(
+      `group-mode ${groupMode === mode ? 'active' : ''}`,
+      tr(`group_${mode}`),
+      () => {
+        groupMode = mode;
+        try {
+          localStorage.setItem('pocket-group', mode);
+        } catch {}
+        modes.querySelectorAll('.group-mode').forEach((n) => {
+          n.classList.toggle('active', n === b);
+          n.setAttribute('aria-pressed', String(n === b));
+        });
+        renderCards();
+      },
+    );
+    b.setAttribute('aria-pressed', String(groupMode === mode));
+    modes.append(b);
+  }
+  const total = el('span', 'session-total');
+  total.id = 'session-total';
+  tools.append(modes, total);
+  main.append(tools);
   const cards = el('div', 'cards');
   cards.id = 'cards';
   main.append(cards);
@@ -214,6 +342,7 @@ function renderMachineFilters() {
           syncTasks();
         },
       );
+      if (m !== 'all') b.style.setProperty('--tag', machineColor(m));
       b.setAttribute('aria-pressed', String(state.machine === m));
       return b;
     }),
@@ -236,66 +365,127 @@ function syncTasks() {
   const notice = $('list-error');
   notice.textContent = state.error;
   notice.classList.toggle('hidden', !state.error);
+  renderCompanion();
   renderMachineFilters();
   renderCards();
+}
+const recent = (a, b) =>
+  (Date.parse(b.lastResponseAt) || 0) - (Date.parse(a.lastResponseAt) || 0) ||
+  a.address.localeCompare(b.address);
+function groupTerminals(terms) {
+  if (groupMode === 'project') {
+    const groups = new Map();
+    for (const t of [...terms].sort(recent)) {
+      const key = project(t);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(t);
+    }
+    return [...groups].map(([name, items]) => ({
+      key: `project:${name}`,
+      label: name,
+      items: items.sort(
+        (a, b) =>
+          STATUS_ORDER.indexOf(sectionOf(a)) - STATUS_ORDER.indexOf(sectionOf(b)) || recent(a, b),
+      ),
+    }));
+  }
+  return STATUS_ORDER.map((s) => ({
+    key: `status:${s}`,
+    label: tr(`section_${s}`),
+    status: s,
+    items: terms.filter((t) => sectionOf(t) === s).sort(recent),
+  })).filter((g) => g.items.length);
+}
+function cardContent(card, t) {
+  const s = statusOf(t) || 'unknown';
+  const head = el('div', 'card-line');
+  head.append(el('span', 'project-title', project(t)));
+  head.append(el('span', 'agent-name', agentLabel(agentOf(t))));
+  const sub = el('div', 'card-line sub');
+  sub.append(machineTag(machineOf(t)), el('span', 'session-title', t.sessionTitle || t.address));
+  const main = el('div', 'card-main');
+  main.append(head, sub);
+  const side = el('div', 'card-side');
+  if (s === 'working' && t.workingSince) {
+    const time = el('time', 'elapsed', elapsed(t.workingSince));
+    time.dataset.since = t.workingSince;
+    time.setAttribute('aria-label', tr('elapsed'));
+    side.append(time);
+  } else if (t.lastResponseAt) {
+    const time = el('time', 'age', ago(t.lastResponseAt));
+    time.dataset.since = t.lastResponseAt;
+    side.append(time);
+  }
+  side.append(statusDot(s));
+  card.setAttribute('aria-label', `${project(t)}, ${statusLabel(s)}, ${machineOf(t)}`);
+  card.replaceChildren(agentIcon(agentOf(t)), main, side);
 }
 function renderCards() {
   const list = $('cards');
   if (!list) return;
-  const terms = (state.snapshot?.terminals || [])
-    .filter(
-      (t) =>
-        (state.filter === 'all' || statusOf(t) === state.filter) &&
-        (state.machine === 'all' || machineOf(t) === state.machine) &&
-        `${t.project} ${t.sessionTitle} ${t.cwd} ${t.agent} ${t.address}`
-          .toLowerCase()
-          .includes(state.search.toLowerCase()),
-    )
-    .sort(
-      (a, b) =>
-        Number(statusOf(b) === 'working') - Number(statusOf(a) === 'working') ||
-        (Date.parse(b.lastResponseAt) || 0) - (Date.parse(a.lastResponseAt) || 0) ||
-        a.address.localeCompare(b.address),
-    );
-  const existing = new Map([...list.querySelectorAll('.card')].map((n) => [n.dataset.address, n]));
-  list.querySelector('.empty')?.remove();
-  terms.forEach((t, index) => {
-    let card = existing.get(t.address);
-    existing.delete(t.address);
-    const signature = JSON.stringify([
-      project(t),
-      t.sessionTitle,
-      agentOf(t),
-      statusOf(t),
-      machineOf(t),
-      t.workingSince,
-    ]);
-    const isNew = !card;
-    if (isNew) {
-      card = button('card', '', () => openDetail(t.address));
-      card.dataset.address = t.address;
+  const all = state.snapshot?.terminals || [];
+  const terms = all.filter(
+    (t) =>
+      (state.filter === 'all' || statusOf(t) === state.filter) &&
+      (state.machine === 'all' || machineOf(t) === state.machine) &&
+      `${t.project} ${t.sessionTitle} ${t.cwd} ${t.agent} ${t.address}`
+        .toLowerCase()
+        .includes(state.search.toLowerCase()),
+  );
+  const total = $('session-total');
+  if (total)
+    total.textContent = `${tr('sessions_total')} ${all.length} · ${tr('working')} ${all.filter((t) => statusOf(t) === 'working').length}`;
+  const cards = new Map([...list.querySelectorAll('.card')].map((n) => [n.dataset.address, n]));
+  const heads = new Map([...list.querySelectorAll('.rail-head')].map((n) => [n.dataset.key, n]));
+  const wanted = [];
+  for (const group of groupTerminals(terms)) {
+    let head = heads.get(group.key);
+    if (!head) {
+      head = el('div', 'rail-head');
+      head.dataset.key = group.key;
+      head.append(el('span', 'rail-head-label'), el('span', 'rail-head-count'));
     }
-    if (card.dataset.signature !== signature) {
-      card.dataset.signature = signature;
-      card.dataset.status = statusOf(t) || 'unknown';
-      const top = el('div', 'card-top');
-      top.append(el('span', 'agent-name', agentLabel(agentOf(t))), workingBadge(t));
-      const foot = el('div', 'card-foot');
-      foot.append(el('span', 'machine-mini', machineOf(t)), icon('arrow'));
-      card.replaceChildren(
-        top,
-        el('div', 'project-title', project(t)),
-        el('div', 'session-title', t.sessionTitle || t.address),
-        foot,
-      );
-      if (!isNew)
-        motion(card, [{ borderColor: 'var(--lime)' }, { borderColor: 'var(--line)' }], {
-          duration: 500,
-        });
+    if (group.status) head.dataset.status = group.status;
+    head.firstChild.textContent = group.label;
+    head.lastChild.textContent = String(group.items.length);
+    wanted.push(head);
+    for (const t of group.items) {
+      let card = cards.get(t.address);
+      const signature = JSON.stringify([
+        project(t),
+        t.sessionTitle,
+        agentOf(t),
+        statusOf(t),
+        machineOf(t),
+        t.workingSince,
+        t.lastResponseAt,
+        I18n.language,
+      ]);
+      const isNew = !card;
+      if (isNew) {
+        card = button('card', '', () => openDetail(t.address));
+        card.dataset.address = t.address;
+      }
+      if (card.dataset.signature !== signature) {
+        const changedStatus = !isNew && card.dataset.status !== (statusOf(t) || 'unknown');
+        card.dataset.signature = signature;
+        card.dataset.status = statusOf(t) || 'unknown';
+        cardContent(card, t);
+        if (changedStatus)
+          motion(card, [{ backgroundColor: 'var(--hover)' }, { backgroundColor: 'transparent' }], {
+            duration: 500,
+          });
+      }
+      wanted.push(card);
     }
-    if (list.children[index] !== card) list.insertBefore(card, list.children[index] || null);
+  }
+  const keep = new Set(wanted);
+  [...list.children].forEach((n) => {
+    if (!keep.has(n)) n.remove();
   });
-  existing.forEach((n) => n.remove());
+  wanted.forEach((n, i) => {
+    if (list.children[i] !== n) list.insertBefore(n, list.children[i] || null);
+  });
   if (!terms.length)
     list.append(el('div', 'empty', state.snapshot ? tr('no_tasks') : tr('loading')));
 }
@@ -318,6 +508,7 @@ function renderDevices() {
   for (const m of machines) {
     const row = el('div', `machine-row ${state.online ? m.state : ''}`),
       i = el('div', 'icon');
+    i.style.setProperty('--tag', machineColor(m.name));
     i.append(icon('devices'));
     const info = el('div', 'info');
     info.append(
@@ -511,10 +702,11 @@ function renderDetail() {
   back.setAttribute('aria-label', tr('back'));
   back.append(icon('back'));
   const heading = el('div', 'detail-heading');
-  heading.append(
-    el('h2', '', project(terminal)),
-    el('small', '', `${machineOf(terminal)} / ${agentLabel(agentOf(terminal))}`),
-  );
+  const where = el('small');
+  where.append(machineTag(machineOf(terminal)), el('span', '', agentLabel(agentOf(terminal))));
+  const title = el('div', 'detail-title');
+  title.append(agentIcon(agentOf(terminal)), el('h2', '', project(terminal)));
+  heading.append(title, where);
   const reload = button('icon-button', '', () => loadDetail());
   reload.id = 'detail-refresh';
   reload.setAttribute('aria-label', tr('refresh_chat'));
