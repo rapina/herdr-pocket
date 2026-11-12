@@ -9,6 +9,6 @@ if (git(['status', '--porcelain']).trim())
   throw new Error('Commit reviewed source before exporting.');
 checkPublic();
 mkdirSync(resolve(root, 'artifacts'), { recursive: true });
-const output = resolve(root, 'artifacts/herdr-pocket-source.zip');
-git(['archive', '--format=zip', '--prefix=herdr-pocket/', `--output=${output}`, 'HEAD']);
+const output = resolve(root, 'artifacts/wired-source.zip');
+git(['archive', '--format=zip', '--prefix=wired/', `--output=${output}`, 'HEAD']);
 console.log(`Exported source without Git history: ${output}`);

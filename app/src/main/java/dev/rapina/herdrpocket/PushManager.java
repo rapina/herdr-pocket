@@ -164,7 +164,7 @@ final class PushManager {
             if (foreground && key.equals(visibleKey)) return;
             boolean ko = !prefs(c).getString("language", "ko").equals("en");
             channels(c, ko);
-            String title = new JSONObject(prefs(c).getString("routes", "{}")).optString(key, "Herdr Pocket");
+            String title = new JSONObject(prefs(c).getString("routes", "{}")).optString(key, "Wired");
             String text = kind.equals("input") ? (ko ? "입력이 필요해요" : "Input needed") : kind.equals("done") ? (ko ? "응답이 도착했어요" : "Response ready") : (ko ? "실행 오류" : "Execution error");
             String preview = data.get("preview");
             if (kind.equals("done") && preview != null && !preview.trim().isEmpty()) text = preview.trim();
@@ -182,7 +182,7 @@ final class PushManager {
             for (android.service.notification.StatusBarNotification n : manager.getActiveNotifications()) if (n.getId() != 0 && n.getId() != key.hashCode()) count++;
             manager.notify(key.hashCode(), notification);
             if (count > 1) manager.notify(0, new Notification.Builder(c, "pocket_done").setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle("Herdr Pocket").setGroup(GROUP).setGroupSummary(true).setGroupAlertBehavior(Notification.GROUP_ALERT_CHILDREN).setAutoCancel(true).build());
+                .setContentTitle("Wired").setGroup(GROUP).setGroupSummary(true).setGroupAlertBehavior(Notification.GROUP_ALERT_CHILDREN).setAutoCancel(true).build());
         } catch (Exception ignored) { }
     }
 }

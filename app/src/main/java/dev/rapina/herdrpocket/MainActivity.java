@@ -192,7 +192,7 @@ public class MainActivity extends Activity {
                             String text = data.getString("text");
                             ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
                             if (clipboard == null) throw new Exception("copy_failed");
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Herdr Pocket", text));
+                            clipboard.setPrimaryClip(ClipData.newPlainText("Wired", text));
                             result = new JSONObject().put("copied", true);
                             break;
                         case "settings": result = connection.settings().put("push", PushManager.status(MainActivity.this)); break;

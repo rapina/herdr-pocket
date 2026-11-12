@@ -11,7 +11,7 @@ npm run check:public
 node scripts/export-public.mjs
 ```
 
-The export creates `artifacts/herdr-pocket-source.zip` from HEAD. It contains source
+The export creates `artifacts/wired-source.zip` from HEAD. It contains source
 files with no `.git` directory, local credentials, conversation artifacts, or build
 outputs. Review the archive before importing it into a new public repository with
 fresh history. The scanner checks common patterns and the local bridge token; it
