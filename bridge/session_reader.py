@@ -61,7 +61,45 @@ def choose_codex(terminal, sessions):
     return candidates[0] if len(candidates) == 1 else None
 
 
+def windows_parents():
+    import ctypes
+    from ctypes import wintypes
+
+    class Entry(ctypes.Structure):
+        _fields_ = [('dwSize', wintypes.DWORD), ('cntUsage', wintypes.DWORD), ('th32ProcessID', wintypes.DWORD),
+                    ('th32DefaultHeapID', ctypes.c_size_t), ('th32ModuleID', wintypes.DWORD), ('cntThreads', wintypes.DWORD),
+                    ('th32ParentProcessID', wintypes.DWORD), ('pcPriClassBase', ctypes.c_long), ('dwFlags', wintypes.DWORD),
+                    ('szExeFile', ctypes.c_wchar * 260)]
+
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    kernel.Process32FirstW.argtypes = kernel.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(Entry)]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    snapshot = kernel.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
+    if snapshot in (None, wintypes.HANDLE(-1).value):
+        raise OSError(ctypes.get_last_error())
+    try:
+        entry = Entry()
+        entry.dwSize = ctypes.sizeof(Entry)
+        tree = {}
+        ok = kernel.Process32FirstW(snapshot, ctypes.byref(entry))
+        while ok:
+            tree[entry.th32ProcessID] = entry.th32ParentProcessID
+            ok = kernel.Process32NextW(snapshot, ctypes.byref(entry))
+        return tree
+    finally:
+        kernel.CloseHandle(snapshot)
+
+
 def parents():
+    if os.name == 'nt':
+        try:
+            tree = windows_parents()
+            if tree:
+                return tree
+        except Exception:
+            pass
     try:
         if os.name == 'nt':
             command = ['powershell', '-NoProfile', '-Command', 'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId | ConvertTo-Json -Compress']
@@ -219,12 +257,69 @@ def tool_label(name):
     return 'activity_tool'
 
 
+def line_records(path, start, end):
+    """Yield (byte offset, record) for lines that start in [start, end)."""
+    with path.open('rb') as stream:
+        offset = start
+        if start:
+            # Skip the rest of the line that contains start - 1.
+            stream.seek(start - 1)
+            offset = start - 1 + len(stream.readline())
+        else:
+            stream.seek(0)
+        while offset < end:
+            line = stream.readline()
+            if not line:
+                break
+            position = offset
+            offset += len(line)
+            try:
+                yield position, json.loads(line)
+            except ValueError:
+                continue
+
+
 def read_conversation(path, agent, before=None):
+    if not path.exists():
+        # Compressed rollouts cannot be read backwards.
+        return conversation_page(*parse_conversation(enumerate(records(path)), agent)[:2], before, False)
+    # Only the newest page is shown, so parse a tail window and grow it until it
+    # holds enough messages and a point where tool activity resets.
+    end = path.stat().st_size if before is None else min(before, path.stat().st_size)
+    window = 1 << 20
+    while True:
+        start = max(0, end - window)
+        messages, activity, reset = parse_conversation(line_records(path, start, end), agent)
+        if start == 0:
+            return conversation_page(messages, activity, None, False)
+        if len(messages) > 61 and (reset or before is not None):
+            # The first message may repeat one just outside the window.
+            return conversation_page(messages[1:], activity, None, True)
+        window *= 4
+
+
+def conversation_page(messages, activity, before, truncated):
+    eligible = [m for m in messages if before is None or m['ordinal'] < before]
+    page = eligible[-60:]
+    budget = 360000
+    result = []
+    for message in reversed(page):
+        message['text'] = message['text'][:100000]
+        if result and len(message['text']) > budget:
+            break
+        result.append(message)
+        budget -= len(message['text'])
+    result.reverse()
+    return {'messages': result, 'hasMore': truncated or len(eligible) > len(result), 'before': result[0]['ordinal'] if result else None, 'activity': activity}
+
+
+def parse_conversation(events, agent):
     messages = []
     seen = set()
     active_tools = {}
     activity = None
-    for ordinal, event in enumerate(records(path)):
+    reset = agent == 'cursor'
+    for ordinal, event in events:
         timestamp = event.get('timestamp')
         if agent == 'cursor':
             data = event.get('message') or {}
@@ -245,6 +340,7 @@ def read_conversation(path, agent, before=None):
                 if kind in ('task_started', 'task_complete', 'turn_aborted'):
                     active_tools.clear()
                     activity = None
+                    reset = True
                 if kind == 'item_completed' and item.get('type') == 'CommandExecution':
                     activity = {'label': 'activity_command', 'state': 'completed', 'timestamp': timestamp}
                 if kind == 'item_completed' and item.get('type') == 'AgentMessage':
@@ -302,28 +398,15 @@ def read_conversation(path, agent, before=None):
         if role not in ('user', 'assistant') or not text.strip() or key in seen:
             continue
         seen.add(key)
-        if role == 'user':
+        if role == 'user' or phase in ('final', 'final_answer'):
             active_tools.clear()
             activity = None
-        elif phase in ('final', 'final_answer'):
-            active_tools.clear()
-            activity = None
+            reset = True
         # Some Codex versions persist both an event and a response item without a shared ID.
         if messages and role == 'assistant' and messages[-1]['role'] == role and messages[-1]['text'] == text:
             continue
         messages.append({'id': key, 'ordinal': ordinal, 'role': role, 'text': text, 'phase': phase, 'timestamp': timestamp})
-    eligible = [m for m in messages if before is None or m['ordinal'] < before]
-    page = eligible[-60:]
-    budget = 360000
-    result = []
-    for message in reversed(page):
-        message['text'] = message['text'][:100000]
-        if result and len(message['text']) > budget:
-            break
-        result.append(message)
-        budget -= len(message['text'])
-    result.reverse()
-    return {'messages': result, 'hasMore': len(eligible) > len(result), 'before': result[0]['ordinal'] if result else None, 'activity': activity}
+    return messages, activity, reset
 
 
 def collect(request, home=None):

@@ -57,11 +57,13 @@ class CursorTest(unittest.TestCase):
                 {'role': 'assistant', 'message': {'content': [{'type': 'thinking', 'text': 'secret'}]}}]
         with tempfile.TemporaryDirectory() as folder:
             path = pathlib.Path(folder) / 'chat.jsonl'
-            path.write_text('\n'.join(map(json.dumps, rows)), encoding='utf-8')
+            path.write_bytes('\n'.join(map(json.dumps, rows)).encode('utf-8'))
             messages = read_conversation(path, 'cursor')['messages']
             self.assertEqual([m['text'] for m in messages], ['hello', 'answer'])
-            self.assertEqual(messages[1]['id'], 'cursor-3')
-            self.assertEqual([m['text'] for m in read_conversation(path, 'cursor', 3)['messages']], ['hello'])
+            # Ordinals are byte offsets of the line in the transcript.
+            answer = sum(len(json.dumps(row)) + 1 for row in rows[:3])
+            self.assertEqual(messages[1]['id'], f'cursor-{answer}')
+            self.assertEqual([m['text'] for m in read_conversation(path, 'cursor', answer)['messages']], ['hello'])
 
 
 if __name__ == '__main__': unittest.main()
