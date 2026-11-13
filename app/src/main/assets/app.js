@@ -247,10 +247,20 @@ function renderCompanion() {
   const avatar = host.querySelector('.companion-avatar');
   if (avatar.getAttribute('src') !== src) avatar.src = src;
 }
+// The bridge error comes first; otherwise name remote machines Herdr lost.
+function listNotice() {
+  if (state.error) return state.error;
+  if (!state.online) return '';
+  const lost = (state.snapshot?.machines || []).filter((m) => m.state !== 'connected');
+  return lost.length
+    ? tr('machines_disconnected', { names: lost.map((m) => m.name).join(', ') })
+    : '';
+}
 function renderTasks() {
   const main = $('main');
   const terminals = state.snapshot?.terminals || [];
-  const notice = el('div', `notice ${state.error ? '' : 'hidden'}`, state.error);
+  const text = listNotice();
+  const notice = el('div', `notice ${text ? '' : 'hidden'}`, text);
   notice.id = 'list-error';
   main.append(notice);
   const companion = el('section', 'companion');
@@ -363,8 +373,8 @@ function syncTasks() {
     b.setAttribute('aria-pressed', String(state.filter === b.dataset.filter));
   });
   const notice = $('list-error');
-  notice.textContent = state.error;
-  notice.classList.toggle('hidden', !state.error);
+  notice.textContent = listNotice();
+  notice.classList.toggle('hidden', !notice.textContent);
   renderCompanion();
   renderMachineFilters();
   renderCards();
