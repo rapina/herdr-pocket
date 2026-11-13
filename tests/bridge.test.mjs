@@ -3,9 +3,19 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createBridge } from '../bridge/server.mjs';
+import { createBridge, createHc } from '../bridge/server.mjs';
 
 const token = 'a'.repeat(64);
+test('an unreachable Herdr core is reported separately from other hc failures', async () => {
+  const hc = createHc(process.execPath);
+  const fail = (kind) =>
+    `process.stderr.write(JSON.stringify({ error: { kind: '${kind}' } })); process.exit(5)`;
+  await assert.rejects(hc('-e', fail('unavailable')), {
+    status: 503,
+    message: 'herdr_unavailable',
+  });
+  await assert.rejects(hc('-e', fail('usage')), { status: 502, message: 'hc_failed' });
+});
 const baseTerminal = { state: 'live', created_ms: 123, status: { app: 'codex', state: 'idle' } };
 async function fixture(t, terminal = baseTerminal, options = {}) {
   const calls = [];

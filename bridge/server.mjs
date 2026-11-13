@@ -20,6 +20,15 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
+export function hcErrorKind(e) {
+  for (const text of [e.stdout, e.stderr]) {
+    try {
+      const kind = JSON.parse(String(text || '').trim()).error?.kind;
+      if (kind) return kind;
+    } catch {}
+  }
+  return null;
+}
 export function createHc(binary = process.env.HC_PATH || 'hc') {
   return async (...args) => {
     const env = { ...process.env };
@@ -35,6 +44,9 @@ export function createHc(binary = process.env.HC_PATH || 'hc') {
       return JSON.parse(stdout.replace(/^\uFEFF/, ''));
     } catch (e) {
       if (e.killed || e.code === 'ETIMEDOUT') throw new ApiError(504, 'hc_timeout');
+      // hc reports "unavailable" when it cannot reach the core, for example a core
+      // started over SSH before anyone signed in on the Windows desktop.
+      if (hcErrorKind(e) === 'unavailable') throw new ApiError(503, 'herdr_unavailable');
       throw new ApiError(502, 'hc_failed');
     }
   };

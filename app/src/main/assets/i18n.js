@@ -428,6 +428,22 @@ const I18n = (() => {
       ko: '브릿지에 연결할 수 없습니다. 네트워크와 브릿지를 확인하세요.',
       en: 'Cannot reach the bridge. Check your network and the bridge.',
     },
+    pc_unreachable: {
+      ko: 'PC에 연결할 수 없습니다. PC가 꺼졌거나 재시작 중인지, 폰과 PC의 Tailscale 연결을 확인하세요.',
+      en: 'Cannot reach the PC. It may be off or restarting; check Tailscale on the phone and the PC.',
+    },
+    bridge_offline: {
+      ko: 'PC는 켜져 있지만 브릿지가 꺼져 있습니다. PC에 로그인되어 있는지 확인하세요.',
+      en: 'The PC is on but the bridge is not running. Check that someone is signed in on the PC.',
+    },
+    herdr_unavailable: {
+      ko: '브릿지가 Herdr에 접근하지 못합니다. PC 데스크톱에 로그인해야 Herdr가 정상적으로 시작됩니다.',
+      en: 'The bridge cannot reach Herdr. Sign in on the PC desktop so Herdr starts normally.',
+    },
+    machines_disconnected: {
+      ko: '연결 끊김: {names}',
+      en: 'Disconnected: {names}',
+    },
     request_failed: {
       ko: '요청을 처리하지 못했습니다.',
       en: 'Request failed.',

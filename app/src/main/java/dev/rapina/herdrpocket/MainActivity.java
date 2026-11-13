@@ -222,7 +222,10 @@ public class MainActivity extends Activity {
                 } catch (Exception e) {
                     try {
                         String message = e.getMessage();
-                        if (e instanceof java.io.IOException) message = "network_error";
+                        if (e instanceof java.net.ConnectException || e instanceof java.net.NoRouteToHostException
+                            || e instanceof java.net.UnknownHostException
+                            || e instanceof java.net.SocketTimeoutException && String.valueOf(message).contains("connect")) message = "pc_unreachable";
+                        else if (e instanceof java.io.IOException) message = "network_error";
                         envelope.put("ok", false).put("error", message == null ? "request_failed" : message).put("status", e instanceof ConnectionStore.HttpFailure ? ((ConnectionStore.HttpFailure)e).status : 0);
                     } catch (Exception ignored) { }
                 }

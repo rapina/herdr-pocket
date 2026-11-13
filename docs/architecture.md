@@ -74,7 +74,10 @@ backgrounding the app pauses playback. Video fullscreen uses WebChromeClient;
 images have a separate viewer with an actual-size mode.
 
 `ConnectionStore.java` owns the encrypted bridge connection independently of the
-WebView. `PushManager` initializes Firebase from private preferences, registers
+WebView. Connection errors name the failing layer: the PC cannot be reached
+(`pc_unreachable`), the proxy answers without the bridge (`bridge_offline`), or the
+bridge cannot reach the Herdr core (`herdr_unavailable`). The task list also names
+remote machines that Herdr reports as disconnected. `PushManager` initializes Firebase from private preferences, registers
 the installation, and posts native notifications. `PocketMessagingService` receives
 FCM data; `PushRegistrationJob` retries device registration. Notification taps resolve
 an opaque session key through the bridge before opening a chat.

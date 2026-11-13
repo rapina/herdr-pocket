@@ -114,7 +114,9 @@ final class ConnectionStore {
                 if (status >= 200 && status < 300) throw new Exception("invalid_response");
             }
             if (status < 200 || status >= 300) {
-                String fallback = status >= 502 && status <= 504 ? "network_error"
+                // A gateway error without the bridge's JSON body comes from the proxy in
+                // front of it (Tailscale serve): the PC answered but the bridge did not.
+                String fallback = status >= 502 && status <= 504 ? "bridge_offline"
                     : status == 401 ? "unauthorized" : "request_failed";
                 throw new HttpFailure(result == null ? fallback : result.optString("error", fallback), status);
             }
