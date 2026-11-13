@@ -428,7 +428,9 @@ def collect(request, home=None):
     if any((t.get('status') or {}).get('app') in ('claude', 'claude-code') for t in terminals):
         for path in (home / '.claude/sessions').glob('*.json'):
             try:
-                claude.append(json.loads(path.read_text(encoding='utf-8')))
+                # Claude Code can rewrite this file in place with shorter JSON and
+                # leave the old tail behind, so read only the first object.
+                claude.append(json.JSONDecoder().raw_decode(path.read_text(encoding='utf-8').lstrip())[0])
             except (ValueError, OSError):
                 pass
         tree = parents()
@@ -470,6 +472,9 @@ def collect(request, home=None):
             sid = session.get('id') or session['sessionId']
             cwd = clean_path(session.get('cwd'))
             item.update(project=basename(cwd), workingCwd=cwd, sessionId=sid, sessionTitle=title or session.get('name') or session.get('title') or '')
+            if app != 'codex':
+                # 'shell' means the turn ended while a background command still runs.
+                item.update(claudeStatus=session.get('status'), claudeStatusAt=session.get('statusUpdatedAt'))
             item['conversation'] = {'messages': [], 'hasMore': False}
             try:
                 if app == 'codex':

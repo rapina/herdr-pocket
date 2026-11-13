@@ -44,6 +44,7 @@ function elapsed(since) {
 }
 function workingBadge(t) {
   const n = badge(statusOf(t));
+  if (t.background) n.append(el('span', 'background-tag', tr('background')));
   if (statusOf(t) === 'working' && t.workingSince) {
     const time = el('time', 'elapsed', elapsed(t.workingSince));
     time.dataset.since = t.workingSince;
@@ -117,6 +118,7 @@ function machineOf(t) {
     : state.snapshot?.localMachine || tr('local_machine');
 }
 function statusOf(t) {
+  if (t?.background) return 'working';
   return typeof t?.status === 'object' ? t.status?.state : t?.status;
 }
 const statusLabel = (s) =>

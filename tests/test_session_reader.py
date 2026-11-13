@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).parents[1] / 'bridge'))
-from session_reader import choose_codex, choose_claude, read_conversation, conversation_metadata, recent_records
+from session_reader import choose_codex, choose_claude, collect, read_conversation, conversation_metadata, recent_records
 
 
 class SessionsTest(unittest.TestCase):
@@ -92,6 +92,18 @@ class SessionsTest(unittest.TestCase):
     def test_claude_process_ancestry_selects_own_session(self):
         sessions = [{'pid': 11, 'sessionId': 'root'}, {'pid': 12, 'sessionId': 'nested'}, {'pid': 99, 'sessionId': 'unrelated'}]
         self.assertEqual(choose_claude({'pid': 10}, sessions, {11: 10, 12: 11})['sessionId'], 'root')
+
+    def test_claude_session_file_with_leftover_tail_still_matches(self):
+        with tempfile.TemporaryDirectory() as folder:
+            home = pathlib.Path(folder)
+            (home / '.claude/sessions').mkdir(parents=True)
+            (home / '.claude/projects/p').mkdir(parents=True)
+            session = {'pid': 4242, 'sessionId': 'sid', 'cwd': '/work/p', 'status': 'shell', 'statusUpdatedAt': 5}
+            (home / '.claude/sessions/4242.json').write_text(json.dumps(session) + '}', encoding='utf-8')
+            (home / '.claude/projects/p/sid.jsonl').write_text('', encoding='utf-8')
+            terminal = {'address': 't1', 'pid': 1, 'status': {'app': 'claude-code'}, 'labels': {'quad.agent': 'claude', 'quad.session': 'sid'}}
+            item = collect({'terminals': [terminal]}, home)[0]
+            self.assertEqual((item['sessionId'], item['claudeStatus'], item['claudeStatusAt']), ('sid', 'shell', 5))
 
     def test_codex_live_message_event_is_visible_once(self):
         item = {'type': 'AgentMessage', 'id': 'progress', 'phase': 'commentary', 'content': [{'type': 'text', 'text': '파일을 확인하고 있습니다.'}]}

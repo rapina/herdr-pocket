@@ -25,6 +25,17 @@ test('response timestamp and active turn start survive terminal projection', () 
   assert.equal(working.workingSince, metadata.turnStartedAt);
   assert.equal(displayTerminal({ status: { state: 'done' } }, metadata).workingSince, null);
 });
+test('a Claude turn waiting on a background command shows as background work', () => {
+  const session = { claudeStatus: 'shell', claudeStatusAt: Date.parse('2026-01-01T12:00:00Z') };
+  const waiting = displayTerminal({ status: { app: 'claude-code', state: 'done' } }, session);
+  assert.equal(waiting.background, true);
+  assert.equal(waiting.workingSince, '2026-01-01T12:00:00.000Z');
+  assert.equal(waiting.status.state, 'done');
+  const busy = displayTerminal({ status: { state: 'working' }, status_ms: 5 }, session);
+  assert.equal(busy.background, false);
+  const idle = { claudeStatus: 'idle' };
+  assert.equal(displayTerminal({ status: { state: 'done' } }, idle).background, false);
+});
 test('terminal API returns structured conversation without reading the terminal screen', async (t) => {
   const calls = [],
     token = 'a'.repeat(64);
