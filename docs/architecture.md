@@ -81,6 +81,10 @@ an opaque session key through the bridge before opening a chat.
 
 `bridge/push.mjs` monitors snapshots, persists event state, and sends minimal FCM
 payloads. Registration and routing endpoints use the existing bridge authentication.
+State files are flushed to disk before they replace the old copy. If a crash still
+leaves the push state or receipts unreadable, the bridge moves the file aside as
+`*.corrupt-<time>` and starts with empty state; phones then need to turn
+notifications off and on again to register.
 See [notification setup and delivery rules](notifications.md).
 
 Codex sessions require a unique current title and project match. The known

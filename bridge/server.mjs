@@ -2,7 +2,7 @@ import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomBytes, timingSafeEqual, createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hostname } from 'node:os';
@@ -10,6 +10,7 @@ import { createSessionProvider, displayTerminal } from './sessions.mjs';
 import { readInteraction, choiceKeys } from './interaction.mjs';
 import { createPushHub, loadPushConfig } from './push.mjs';
 import { createMediaStore } from './media.mjs';
+import { loadJsonState, saveJsonFile } from './state-file.mjs';
 
 const exec = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -59,11 +60,7 @@ function validateAddress(address) {
   return address;
 }
 const hash = (v) => createHash('sha256').update(v).digest('hex');
-function saveJson(path, data) {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(`${path}.tmp`, JSON.stringify(data, null, 2), { mode: 0o600 });
-  renameSync(`${path}.tmp`, path);
-}
+const saveJson = (path, data) => saveJsonFile(path, JSON.stringify(data, null, 2));
 export function loadConfig(folder = resolve(root, '.local')) {
   mkdirSync(folder, { recursive: true });
   const path = resolve(folder, 'config.json');
@@ -81,9 +78,7 @@ export function createBridge({
 }) {
   if (!token || token.length < 32) throw new Error('A token of at least 32 characters is required');
   const receiptPath = folder && resolve(folder, 'receipts.json');
-  const receipts = new Map(
-    receiptPath && existsSync(receiptPath) ? JSON.parse(readFileSync(receiptPath, 'utf8')) : [],
-  );
+  const receipts = new Map(loadJsonState(receiptPath, []));
   for (const r of receipts.values())
     if (
       r.state === 'sending' ||
