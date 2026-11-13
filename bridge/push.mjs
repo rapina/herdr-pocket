@@ -1,6 +1,7 @@
 import { randomUUID, createHash, sign } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { loadJsonState, saveJsonFile } from './state-file.mjs';
 
 const uuid = /^[a-f0-9-]{36}$/;
 const identity = (t) => JSON.stringify([t.address, t.created_ms, t.sessionId]);
@@ -116,12 +117,9 @@ export function createPushHub({
   now = Date.now,
 }) {
   const path = folder && resolve(folder, 'push-state.json');
-  const data = path && existsSync(path) ? read(path) : { devices: {}, routes: {}, pending: [] };
+  const data = loadJsonState(path, { devices: {}, routes: {}, pending: [] });
   const save = () => {
-    if (!path) return;
-    mkdirSync(folder, { recursive: true });
-    writeFileSync(`${path}.tmp`, JSON.stringify(data), { mode: 0o600 });
-    renameSync(`${path}.tmp`, path);
+    if (path) saveJsonFile(path, JSON.stringify(data));
   };
   let timer,
     busy = false,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, generateKeyPairSync } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createPushHub, createFcmSender, notificationPreview } from '../bridge/push.mjs';
@@ -227,4 +227,20 @@ test('push endpoints require bridge authentication and reject invalid registrati
   });
   assert.equal(response.status, 400);
   assert.throws(() => createPushHub({}).register({}), { status: 503 });
+});
+test('a state file damaged by a crash is set aside instead of stopping the bridge', (t) => {
+  const folder = mkdtempSync(join(tmpdir(), 'pocket-push-'));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  writeFileSync(join(folder, 'push-state.json'), Buffer.alloc(64));
+  writeFileSync(join(folder, 'receipts.json'), Buffer.alloc(64));
+  const warn = console.warn;
+  console.warn = () => {};
+  t.after(() => (console.warn = warn));
+  const hub = createPushHub({ folder, config, send: async () => {} });
+  hub.register({ id: randomUUID(), token: 'test-device-token-'.repeat(4) });
+  createBridge({ token: 'x'.repeat(32), folder, push: hub });
+  const names = readdirSync(folder);
+  assert.equal(names.filter((n) => n.startsWith('push-state.json.corrupt-')).length, 1);
+  assert.equal(names.filter((n) => n.startsWith('receipts.json.corrupt-')).length, 1);
+  assert.ok(JSON.parse(readFileSync(join(folder, 'push-state.json'), 'utf8')).devices);
 });
