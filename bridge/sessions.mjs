@@ -6,6 +6,10 @@ const bootstrap = `import json,sys,types;sys.stdin.reconfigure(encoding='utf-8')
 
 export function displayTerminal(terminal, session = {}) {
   const app = session.agent || terminal.status?.app || terminal.agent;
+  // Claude Code ends its turn while a background command runs; Herdr then reports
+  // done or idle even though work continues until the command finishes.
+  const background =
+    session.claudeStatus === 'shell' && ['done', 'idle'].includes(terminal.status?.state);
   const title = (terminal.title || '').replace(/^\[\s*!\s*\]\s*Action Required\s*\|\s*/, '');
   const parts = app === 'codex' ? title.split(' | ') : [];
   const folder = parts.length > 1 ? parts.at(-1) : null;
@@ -31,8 +35,12 @@ export function displayTerminal(terminal, session = {}) {
     sessionId: session.sessionId || null,
     lastResponseAt: session.lastResponseAt || null,
     lastResponseText: session.lastResponseText || '',
-    workingSince:
-      (session.cursorState || terminal.status?.state) === 'working'
+    background,
+    workingSince: background
+      ? session.claudeStatusAt
+        ? new Date(session.claudeStatusAt).toISOString()
+        : null
+      : (session.cursorState || terminal.status?.state) === 'working'
         ? session.turnStartedAt || terminal.status_ms || null
         : null,
   };

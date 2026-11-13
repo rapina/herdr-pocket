@@ -440,6 +440,10 @@ const I18n = (() => {
       ko: '브릿지가 Herdr에 접근하지 못합니다. PC 데스크톱에 로그인해야 Herdr가 정상적으로 시작됩니다.',
       en: 'The bridge cannot reach Herdr. Sign in on the PC desktop so Herdr starts normally.',
     },
+    background: {
+      ko: '백그라운드',
+      en: 'Background',
+    },
     machines_disconnected: {
       ko: '연결 끊김: {names}',
       en: 'Disconnected: {names}',

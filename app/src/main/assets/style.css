@@ -1029,6 +1029,9 @@ main > .notice {
     opacity: 0.35;
   }
 }
+.background-tag {
+  opacity: 0.75;
+}
 .elapsed {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
