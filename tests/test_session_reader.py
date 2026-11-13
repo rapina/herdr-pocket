@@ -118,6 +118,36 @@ class SessionsTest(unittest.TestCase):
         events.append({'type': 'user', 'message': {'content': [{'type': 'tool_result', 'tool_use_id': 't', 'content': 'private debug'}]}})
         self.assertEqual(self.conversation(events, 'claude-code')['activity']['state'], 'completed')
 
+    def test_long_transcript_reads_tail_window_like_full_scan(self):
+        # Large filler records push early turns outside the first tail window.
+        filler = {'type': 'response_item', 'payload': {'type': 'reasoning', 'text': 'x' * 100000}}
+        events = []
+        for turn in range(80):
+            events += [{'type': 'event_msg', 'payload': {'type': 'task_started'}}, self.message('user', f'q{turn}', id=f'q{turn}'), filler, self.message('assistant', f'a{turn}', id=f'a{turn}')]
+        call = {'type': 'response_item', 'timestamp': 't', 'payload': {'type': 'function_call', 'name': 'apply_patch', 'call_id': 'c'}}
+        events += [{'type': 'event_msg', 'payload': {'type': 'task_started'}}, self.message('user', 'last', id='last'), call]
+        latest = self.conversation(events)
+        self.assertTrue(latest['hasMore'])
+        self.assertEqual(latest['activity']['label'], 'activity_edit')
+        self.assertEqual(latest['messages'][-1]['text'], 'last')
+        texts = [m['text'] for m in latest['messages']]
+        with tempfile.TemporaryDirectory() as folder:
+            path = pathlib.Path(folder) / 'session.jsonl'
+            path.write_text('\n'.join(json.dumps(e) for e in events), encoding='utf-8')
+            before = latest['before']
+            while before is not None:
+                page = read_conversation(path, 'codex', before)
+                texts = [m['text'] for m in page['messages']] + texts
+                before = page['before'] if page['hasMore'] else None
+        expected = [t for turn in range(80) for t in (f'q{turn}', f'a{turn}')] + ['last']
+        self.assertEqual(texts, expected)
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Toolhelp snapshots are Windows only')
+    def test_windows_process_tree_matches_current_process(self):
+        from session_reader import windows_parents
+        import os
+        self.assertEqual(windows_parents().get(os.getpid()), os.getppid())
+
     @unittest.skipUnless(sys.platform == 'win32', 'extended-length paths are Windows only')
     def test_codex_rollout_with_extended_length_prefix_is_readable(self):
         import sqlite3

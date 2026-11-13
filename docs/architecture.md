@@ -27,6 +27,9 @@ Scripts load in this order, using classic scripts for Android's local asset URL:
 The Node bridge calls `hc` with argument arrays. It groups terminals by machine and
 runs the Python session reader through Herdr. The reader opens Codex's session DB
 read-only and reads Codex or Claude Code transcripts on the machine that owns them.
+It parses only the end of a transcript, growing the window until it holds one page
+of messages and the start of the current turn, so long sessions open as fast as
+short ones. History cursors are byte offsets into the transcript.
 
 Cursor CLI uses `cursor_bridge.py`, installed into the user's Cursor hooks. Its
 SQLite binding records the Herdr terminal generation, Cursor process ID and start
