@@ -229,6 +229,7 @@ export function createBridge({
           interaction,
           canSend:
             !!match?.sessionId &&
+            !match?.parked &&
             terminal.state === 'live' &&
             isAgent(displayed) &&
             (match?.agent === 'cursor'

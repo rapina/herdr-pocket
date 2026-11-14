@@ -127,16 +127,27 @@ def choose_claude(terminal, sessions, tree):
         depth = distance(session.get('pid'), terminal.get('pid'), tree)
         if depth is not None:
             matches.append((depth, session))
+    chosen = None
     if matches:
         matches.sort(key=lambda pair: pair[0])
         if len(matches) == 1 or matches[0][0] < matches[1][0]:
-            return matches[0][1]
+            chosen = matches[0][1]
     labels = terminal.get('labels') or {}
-    if labels.get('quad.agent') == 'claude':
+    if not chosen and labels.get('quad.agent') == 'claude':
         candidates = [s for s in sessions if s.get('sessionId') == labels.get('quad.session')]
         if len(candidates) == 1:
-            return candidates[0]
-    return None
+            chosen = candidates[0]
+    # A session sent to the background leaves the terminal client parked while a
+    # separate job process, outside the terminal's process tree, does the work.
+    if chosen and chosen.get('parkedJobId'):
+        jobs = [s for s in sessions if s.get('jobId') == chosen['parkedJobId'] and s.get('pid') in tree]
+        if len(jobs) == 1:
+            return {**jobs[0], 'parked': True}
+    return chosen
+
+
+def is_claude(terminal):
+    return (terminal.get('status') or {}).get('app') in ('claude', 'claude-code') or (terminal.get('labels') or {}).get('quad.agent') == 'claude'
 
 
 def records(path):
@@ -425,7 +436,7 @@ def collect(request, home=None):
         pass
     claude = []
     tree = {}
-    if any((t.get('status') or {}).get('app') in ('claude', 'claude-code') for t in terminals):
+    if any(is_claude(t) for t in terminals):
         for path in (home / '.claude/sessions').glob('*.json'):
             try:
                 # Claude Code can rewrite this file in place with shorter JSON and
@@ -465,6 +476,8 @@ def collect(request, home=None):
             result.append(item)
             continue
         app = (terminal.get('status') or {}).get('app', '')
+        if not app and is_claude(terminal):
+            app = 'claude-code'
         title, project = title_parts(terminal.get('title')) if app == 'codex' else ('', '')
         item = {'address': terminal['address'], 'project': project or basename(terminal.get('cwd')), 'sessionTitle': title, 'conversation': {'messages': [], 'hasMore': False, 'unavailable': 'session_unavailable'}}
         session = choose_codex(terminal, codex) if app == 'codex' else choose_claude(terminal, claude, tree) if app in ('claude', 'claude-code') else None
@@ -475,6 +488,10 @@ def collect(request, home=None):
             if app != 'codex':
                 # 'shell' means the turn ended while a background command still runs.
                 item.update(claudeStatus=session.get('status'), claudeStatusAt=session.get('statusUpdatedAt'))
+                if not (terminal.get('status') or {}).get('app'):
+                    item['agent'] = 'claude-code'
+                if session.get('parked'):
+                    item['parked'] = True
             item['conversation'] = {'messages': [], 'hasMore': False}
             try:
                 if app == 'codex':
