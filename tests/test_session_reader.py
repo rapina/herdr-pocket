@@ -105,6 +105,26 @@ class SessionsTest(unittest.TestCase):
             item = collect({'terminals': [terminal]}, home)[0]
             self.assertEqual((item['sessionId'], item['claudeStatus'], item['claudeStatusAt']), ('sid', 'shell', 5))
 
+    def test_parked_claude_session_follows_its_background_job(self):
+        sessions = [{'pid': 11, 'sessionId': 'old', 'parkedJobId': 'job1', 'status': 'idle'},
+                    {'pid': 50, 'sessionId': 'job1-full', 'jobId': 'job1', 'kind': 'bg', 'status': 'busy'}]
+        chosen = choose_claude({'pid': 10}, sessions, {11: 10, 50: 40})
+        self.assertEqual((chosen['sessionId'], chosen['status'], chosen['parked']), ('job1-full', 'busy', True))
+        # A job whose process is gone leaves the parked session as the match.
+        self.assertEqual(choose_claude({'pid': 10}, sessions, {11: 10})['sessionId'], 'old')
+
+    def test_claude_terminal_without_herdr_status_is_still_read(self):
+        with tempfile.TemporaryDirectory() as folder:
+            home = pathlib.Path(folder)
+            (home / '.claude/sessions').mkdir(parents=True)
+            (home / '.claude/projects/p').mkdir(parents=True)
+            session = {'pid': 4242, 'sessionId': 'sid', 'cwd': '/work/p', 'status': 'busy'}
+            (home / '.claude/sessions/4242.json').write_text(json.dumps(session), encoding='utf-8')
+            (home / '.claude/projects/p/sid.jsonl').write_text('', encoding='utf-8')
+            terminal = {'address': 't1', 'pid': 1, 'status': None, 'labels': {'quad.agent': 'claude', 'quad.session': 'sid'}}
+            item = collect({'terminals': [terminal]}, home)[0]
+            self.assertEqual((item['sessionId'], item['agent'], item['claudeStatus']), ('sid', 'claude-code', 'busy'))
+
     def test_codex_live_message_event_is_visible_once(self):
         item = {'type': 'AgentMessage', 'id': 'progress', 'phase': 'commentary', 'content': [{'type': 'text', 'text': '파일을 확인하고 있습니다.'}]}
         events = [self.message('user', '확인해줘'), {'type': 'event_msg', 'payload': {'type': 'item_completed', 'item': item}}, self.message('assistant', '파일을 확인하고 있습니다.', id='progress', phase='commentary')]

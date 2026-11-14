@@ -7,9 +7,11 @@ const bootstrap = `import json,sys,types;sys.stdin.reconfigure(encoding='utf-8')
 export function displayTerminal(terminal, session = {}) {
   const app = session.agent || terminal.status?.app || terminal.agent;
   // Claude Code ends its turn while a background command runs; Herdr then reports
-  // done or idle even though work continues until the command finishes.
-  const background =
-    session.claudeStatus === 'shell' && ['done', 'idle'].includes(terminal.status?.state);
+  // done or idle even though work continues until the command finishes. A session
+  // sent to the background has no Herdr status at all, only Claude's own.
+  const background = terminal.status
+    ? session.claudeStatus === 'shell' && ['done', 'idle'].includes(terminal.status.state)
+    : ['busy', 'shell'].includes(session.claudeStatus);
   const title = (terminal.title || '').replace(/^\[\s*!\s*\]\s*Action Required\s*\|\s*/, '');
   const parts = app === 'codex' ? title.split(' | ') : [];
   const folder = parts.length > 1 ? parts.at(-1) : null;

@@ -36,6 +36,15 @@ test('a Claude turn waiting on a background command shows as background work', (
   const idle = { claudeStatus: 'idle' };
   assert.equal(displayTerminal({ status: { state: 'done' } }, idle).background, false);
 });
+test('a Claude session sent to the background shows as working from its own status', () => {
+  const job = { agent: 'claude-code', parked: true, claudeStatus: 'busy', claudeStatusAt: 7 };
+  const shown = displayTerminal({ agent: 'powershell.exe', status: null }, job);
+  assert.equal(shown.agent, 'claude-code');
+  assert.equal(shown.background, true);
+  assert.equal(shown.workingSince, new Date(7).toISOString());
+  const finished = { ...job, claudeStatus: 'idle' };
+  assert.equal(displayTerminal({ status: null }, finished).background, false);
+});
 test('terminal API returns structured conversation without reading the terminal screen', async (t) => {
   const calls = [],
     token = 'a'.repeat(64);
